@@ -131,7 +131,7 @@ pub fn build(b: *std.Build) !void {
 
     const curl = b.addLibrary(.{
         .linkage = linkage,
-        .name = "curl",
+        .name = "libcurl",
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
