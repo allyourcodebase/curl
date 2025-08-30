@@ -1,11 +1,11 @@
 .{
     .name = .curl,
-    .version = "8.13.0",
+    .version = "8.15.0",
     .minimum_zig_version = "0.14.0",
     .dependencies = .{
         .curl = .{
-            .url = "git+https://github.com/curl/curl?ref=curl-8_13_0#1c3149881769e7bd79b072e48374e4c2b3678b2f",
-            .hash = "N-V-__8AAOW3DQE-bmc-hp-1TcgJeJM2jNRzWMhl3tuWEZwb",
+            .url = "git+https://github.com/curl/curl?ref=curl-8_15_0#cfbfb65047e85e6b08af65fe9cdbcf68e9ad496a",
+            .hash = "N-V-__8AAHMjEAGr7410xUlFlTLfZMGyrDdMAWCCm7vhcwff",
         },
         .zlib = .{
             .url = "git+https://github.com/allyourcodebase/zlib#6c72830882690c1eb2567a537525c3f432c1da50",
