@@ -870,7 +870,7 @@ pub fn build(b: *std.Build) !void {
         .PACKAGE_NAME = "a suitable curl mailing list: https://curl.se/mail/",
         .PACKAGE_STRING = "curl",
         .PACKAGE_TARNAME = "curl",
-        .PACKAGE_VERSION = b.fmt("{}", .{version}),
+        .PACKAGE_VERSION = b.fmt("{f}", .{version}),
         .STDC_HEADERS = true,
         .USE_ARES = enable_ares,
         .USE_THREADS_POSIX = target.result.os.tag != .windows and !target.result.os.tag.isDarwin(),
@@ -908,7 +908,7 @@ pub fn build(b: *std.Build) !void {
         .USE_SCHANNEL = use_schannel,
         .USE_WATT32 = null, // DOS
         .CURL_WITH_MULTI_SSL = with_multi_sll,
-        .VERSION = b.fmt("{}", .{version}),
+        .VERSION = b.fmt("{f}", .{version}),
         ._FILE_OFFSET_BITS = 64,
         ._LARGE_FILES = null, // OS/400
         ._THREAD_SAFE = null, // AIX 4.3
