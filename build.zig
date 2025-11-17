@@ -321,12 +321,15 @@ pub fn build(b: *std.Build) !void {
     if (use_mbedtls) {
         if (b.systemIntegrationOption("mbedtls", .{})) {
             curl.root_module.linkSystemLibrary("mbedtls", .{});
+            // TODO MBEDTLS_VERSION
         } else {
             if (b.lazyDependency("mbedtls", .{
                 .target = target,
                 .optimize = optimize,
             })) |dependency| {
                 curl.root_module.linkLibrary(dependency.artifact("mbedtls"));
+                // TODO infer the version
+                curl.root_module.addCMacro("MBEDTLS_VERSION", "3.6.4");
             }
         }
     }

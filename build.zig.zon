@@ -28,8 +28,8 @@
             .lazy = true,
         },
         .mbedtls = .{
-            .url = "git+https://github.com/allyourcodebase/mbedtls#7d862fe61ff2eac37ee54e1e017fc287bed1cd7a",
-            .hash = "mbedtls-3.6.2-E4NURzYUAABWLBwHJWx_ppb_j2kDSoGfCfR2rI2zs9dz",
+            .url = "git+https://github.com/allyourcodebase/mbedtls.git#88c5b1892c284997a82385fd152f773e0492fe7d",
+            .hash = "mbedtls-3.6.4-E4NUR7EUAAC0PK_jVCUyV3dvci1Uwbl4JFQzScnyqcsn",
             .lazy = true,
         },
     },
