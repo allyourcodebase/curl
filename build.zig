@@ -8,6 +8,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const single_threaded = b.option(bool, "single-threaded", "Build in single threaded mode");
     const linkage = b.option(std.builtin.LinkMode, "linkage", "Link mode") orelse .static;
     const strip = b.option(bool, "strip", "Omit debug information");
     const pic = b.option(bool, "pie", "Produce Position Independent Code");
@@ -55,7 +56,7 @@ pub fn build(b: *std.Build) !void {
 
     var enable_windows_sspi = b.option(bool, "windows-sspi", "Enable SSPI on Windows (default: use-schannel)") orelse use_schannel;
     const enable_ipv6 = b.option(bool, "enable-ipv6", "Enable IPv6 support (default: true)") orelse true;
-    const enable_threaded_resolver = dependentBoolOption(b, "threaded-resolver", "Enable threaded DNS lookup", true, !enable_ares, false);
+    const enable_threaded_resolver = dependentBoolOption(b, "threaded-resolver", "Enable threaded DNS lookup", true, !(single_threaded orelse false) and !enable_ares, false);
     const enable_unicode = b.option(bool, "unicode", "Use the Unicode version of the Windows API functions (default: false)") orelse false;
     const enable_unix_sockets = b.option(bool, "unix-sockets", "Enable Unix domain sockets support (default: true)") orelse true;
     const ech = b.option(bool, "ech", "Enable ECH support (default: false)") orelse false;
@@ -133,6 +134,7 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
+            .single_threaded = single_threaded,
             .strip = strip,
             .pic = pic,
         }),
@@ -153,6 +155,7 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
+            .single_threaded = single_threaded,
             .strip = strip,
             .pic = pic,
         }),
@@ -326,6 +329,7 @@ pub fn build(b: *std.Build) !void {
             if (b.lazyDependency("mbedtls", .{
                 .target = target,
                 .optimize = optimize,
+                .threading = !(single_threaded orelse false),
             })) |dependency| {
                 curl.root_module.linkLibrary(dependency.artifact("mbedtls"));
                 // TODO infer the version
@@ -385,6 +389,7 @@ pub fn build(b: *std.Build) !void {
             if (b.lazyDependency("zstd", .{
                 .target = target,
                 .optimize = optimize,
+                .@"multi-thread" = if (single_threaded orelse false) false else null,
             })) |dependency| {
                 curl.root_module.linkLibrary(dependency.artifact("zstd"));
             }
@@ -893,7 +898,7 @@ pub fn build(b: *std.Build) !void {
         .PACKAGE_VERSION = b.fmt("{f}", .{version}),
         .STDC_HEADERS = true,
         .USE_ARES = enable_ares,
-        .USE_THREADS_POSIX = target.result.os.tag != .windows and !target.result.os.tag.isBSD(),
+        .USE_THREADS_POSIX = enable_threaded_resolver and target.result.os.tag != .windows and !target.result.os.tag.isBSD(),
         .USE_THREADS_WIN32 = enable_threaded_resolver and target.result.os.tag == .windows,
         .USE_GNUTLS = use_gnutls,
         .USE_SSLS_EXPORT = use_ssls_export,
