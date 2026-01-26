@@ -38,14 +38,12 @@ pub fn build(b: *std.Build) !void {
     const use_libssh2 = b.option(bool, "libssh2", "Use libssh2 (default: true)") orelse true;
     const use_libssh = b.option(bool, "libssh", "Use libssh (default: false)") orelse false;
     const use_libuv = b.option(bool, "libuv", "Use libuv for event-based tests (default: false)") orelse false;
-    const use_wolfssh = b.option(bool, "wolfssh", "Use wolfSSH (default: false)") orelse false;
     const use_zlib = b.option(bool, "zlib", "Use zlib (default: true)") orelse true;
     const use_zstd = b.option(bool, "zstd", "Use zstd (default: false)") orelse false;
     const enable_ares = b.option(bool, "ares", "Enable c-ares support (default: false)") orelse false;
     const use_apple_idn = b.option(bool, "apple-idn", "Use Apple built-in IDN support (default: false)") orelse false;
     const use_libidn2 = b.option(bool, "libidn2", "Use libidn2 for IDN support (default: true)") orelse true;
     const use_librtmp = b.option(bool, "librtmp", "Enable librtmp from rtmpdump (default: false)") orelse false;
-    const use_msh3 = b.option(bool, "msh3", "Use msh3/msquic library for HTTP/3 support (default: false)") orelse false;
     const use_nghttp2 = b.option(bool, "nghttp2", "Use nghttp2 library (default: true)") orelse true;
     const use_ngtcp2 = b.option(bool, "ngtcp2", "Use ngtcp2 and nghttp3 libraries for HTTP/3 support (default: false)") orelse false;
     const use_quiche = b.option(bool, "quiche", "Use quiche library for HTTP/3 support (default: false)") orelse false;
@@ -104,8 +102,8 @@ pub fn build(b: *std.Build) !void {
     const disable_shuffle_dns = b.option(bool, "disable-shuffle-dns", "Disable shuffle DNS feature") orelse false;
     var disable_smb = b.option(bool, "disable-smb", "Disable SMB") orelse false;
     var disable_smtp = b.option(bool, "disable-smtp", "Disable SMTP") orelse false;
-    const disable_socketpair = b.option(bool, "disable-socketpair", "Disable use of socketpair for curl_multi_poll") orelse false;
-    const disable_websockets = b.option(bool, "disable-websockets", "Disable WebSocket") orelse false;
+    const disable_socketpair = b.option(bool, "disable-socketpair", "Disable use of socketpair for curl_multi_poll()") orelse false;
+    var disable_websockets = b.option(bool, "disable-websockets", "Disable WebSocket") orelse false;
     var disable_telnet = b.option(bool, "disable-telnet", "Disable Telnet") orelse false;
     var disable_tftp = b.option(bool, "disable-tftp", "Disable TFTP") orelse false;
     const disable_verbose_strings = b.option(bool, "disable-verbose-strings", "Disable verbose strings") orelse false;
@@ -113,10 +111,14 @@ pub fn build(b: *std.Build) !void {
 
     // CA bundle options
 
-    var ca_bundle = b.option([]const u8, "ca-bundle", "Path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.") orelse "auto";
-    const ca_fallback = b.option(bool, "ca-fallback", "Use built-in CA store of TLS backend. Defaults to OFF") orelse false;
-    var ca_path = b.option([]const u8, "ca-path", "Location of default CA path. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.") orelse "auto";
-    const ca_embed = b.option([]const u8, "ca-embed", "Path to the CA bundle to embed in the curl tool");
+    var ca_bundle = b.option([]const u8, "ca-bundle", "Absolute path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.") orelse "auto";
+    const ca_fallback = b.option(bool, "ca-fallback", "Use built-in CA store of OpenSSL. Defaults to OFF") orelse false;
+    var ca_path = b.option([]const u8, "ca-path", "Absolute path to a directory containing CA certificates stored individually. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.") orelse "auto";
+    const ca_embed = b.option([]const u8, "ca-embed", "Absolute path to the CA bundle to embed in the curl tool.");
+
+    if (ca_fallback and !use_openssl) {
+        @panic("CURL_CA_FALLBACK only works with OpenSSL.");
+    }
 
     const disable_ca_search = b.option(bool, "disable-ca-search", "Disable unsafe CA bundle search in PATH on Windows") orelse false;
     const ca_search_safe = b.option(bool, "ca-search-safe", "Enable safe CA bundle search (within the curl tool directory) on Windows") orelse false;
@@ -204,10 +206,11 @@ pub fn build(b: *std.Build) !void {
     }
 
     if (disable_http) {
-        disable_ipfs = true;
-        disable_rtsp = true;
         disable_altsvc = true;
         disable_hsts = true;
+        disable_ipfs = true;
+        disable_rtsp = true;
+        disable_websockets = true;
     }
 
     if (http_only) {
@@ -216,11 +219,11 @@ pub fn build(b: *std.Build) !void {
         disable_ftp = true;
         disable_gopher = true;
         disable_imap = true;
+        disable_ipfs = true;
         disable_ldap = true;
         disable_ldaps = true;
         disable_mqtt = true;
         disable_pop3 = true;
-        disable_ipfs = true;
         disable_rtsp = true;
         disable_smb = true;
         disable_smtp = true;
@@ -256,16 +259,6 @@ pub fn build(b: *std.Build) !void {
         // TODO curl.root_module.linkSystemLibrary("socket", .{});
     }
 
-    if (target.result.os.tag == .windows) {
-        curl.root_module.linkSystemLibrary("ws2_32", .{});
-        curl.root_module.linkSystemLibrary("bcrypt", .{});
-
-        if (use_schannel) { // Assumes `NOT WINDOWS_STORE`
-            curl.root_module.linkSystemLibrary("advapi32", .{});
-            curl.root_module.linkSystemLibrary("crypt32", .{});
-        }
-    }
-
     if (use_openssl_quic and !use_openssl) {
         std.log.warn("OpenSSL QUIC has been requested, but without enabling OpenSSL. Will not enable QUIC.", .{});
         use_openssl_quic = false;
@@ -278,7 +271,7 @@ pub fn build(b: *std.Build) !void {
         @as(usize, @intFromBool(use_gnutls)) +
         @as(usize, @intFromBool(use_rustls));
 
-    const with_multi_sll = enabled_ssl_options_count > 1;
+    const with_multi_ssl = enabled_ssl_options_count > 1;
     if (enabled_ssl_options_count == 0) {
         disable_hsts = true;
     }
@@ -305,6 +298,21 @@ pub fn build(b: *std.Build) !void {
         enable_windows_sspi = true;
     }
 
+    if (target.result.os.tag == .windows) {
+        // Assumes `NOT WINDOWS_STORE`
+        curl.root_module.linkSystemLibrary("ws2_32", .{});
+        curl.root_module.linkSystemLibrary("iphlpapi", .{});
+        curl.root_module.linkSystemLibrary("bcrypt", .{});
+
+        if (use_schannel) {
+            curl.root_module.linkSystemLibrary("advapi32", .{});
+            curl.root_module.linkSystemLibrary("crypt32", .{});
+        }
+        if (enable_windows_sspi) {
+            curl.root_module.linkSystemLibrary("secur32", .{});
+        }
+    }
+
     if (use_openssl) {
         // TODO BoringSSL, AWS-LC, LibreSSL, and quictls
         if (b.systemIntegrationOption("openssl", .{})) {
@@ -322,6 +330,7 @@ pub fn build(b: *std.Build) !void {
         // TODO HAVE_AWSLC
     }
     if (use_mbedtls) {
+        // TODO HAVE_MBEDTLS_DES_CRYPT_ECB
         if (b.systemIntegrationOption("mbedtls", .{})) {
             curl.root_module.linkSystemLibrary("mbedtls", .{});
             // TODO MBEDTLS_VERSION
@@ -404,7 +413,8 @@ pub fn build(b: *std.Build) !void {
         // TODO HAVE_WOLFSSL_BIO_SET_SHUTDOWN
     }
 
-    if (use_openssl or use_wolfssl) {
+    if (use_openssl) {
+        // TODO HAVE_DES_ECB_ENCRYPT
         // TODO HAVE_SSL_SET0_WBIO
         if (!disable_srp) {
             // TODO HAVE_OPENSSL_SRP
@@ -430,7 +440,9 @@ pub fn build(b: *std.Build) !void {
     }
 
     if (use_ngtcp2) {
-        if (use_openssl or use_wolfssl) {
+        if (with_multi_ssl) {
+            std.debug.panic("MultiSSL cannot be enabled with HTTP/3 and vice versa.", .{});
+        } else if (use_openssl or use_wolfssl) {
             if (use_wolfssl) {
                 // ngtcp2_crypto_wolfssl
             } else if (have_boring_ssl or have_awslc) {
@@ -441,7 +453,7 @@ pub fn build(b: *std.Build) !void {
         } else if (use_gnutls) {
             // ngtcp2_crypto_gnutls
         } else {
-            std.debug.panic("ngtcp2 requires OpenSSL, wolfSSL or GnuTLS", .{});
+            std.debug.panic("ngtcp2 requires a supported TLS-backend", .{});
         }
         // ngtcp2
         // nghttp3
@@ -450,6 +462,8 @@ pub fn build(b: *std.Build) !void {
     if (use_quiche) {
         if (use_ngtcp2) {
             std.debug.panic("Only one HTTP/3 backend can be selected", .{});
+        } else if (with_multi_ssl) {
+            std.debug.panic("MultiSSL cannot be enabled with HTTP/3 and vice versa.", .{});
         }
         // Quiche
         if (!have_boring_ssl) {
@@ -458,27 +472,13 @@ pub fn build(b: *std.Build) !void {
         // TODO HAVE_QUICHE_CONN_SET_QLOG_FD
     }
 
-    if (use_msh3) {
+    if (use_openssl_quic) {
         if (use_ngtcp2 or use_quiche) {
             std.debug.panic("Only one HTTP/3 backend can be selected", .{});
-        }
-        if (target.result.os.tag != .windows) {
-            if (!use_openssl) {
-                std.debug.panic("msh3/msquic requires OpenSSL fork with QUIC API", .{});
-            }
-        }
-        // MSH3
-    }
-
-    if (use_openssl_quic) {
-        if (use_ngtcp2 or use_quiche or use_msh3) {
-            std.debug.panic("Only one HTTP/3 backend can be selected", .{});
+        } else if (with_multi_ssl) {
+            std.debug.panic("MultiSSL cannot be enabled with HTTP/3 and vice versa.", .{});
         }
         curl.root_module.linkSystemLibrary("nghttp3", .{});
-    }
-
-    if (with_multi_sll and (use_ngtcp2 or use_quiche or use_msh3 or use_openssl_quic)) {
-        std.debug.panic("MultiSSL cannot be enabled with HTTP/3 and vice versa.", .{});
     }
 
     // if (!disable_srp and (have_gnutls_srp and have_openssl_srp)) {
@@ -535,14 +535,6 @@ pub fn build(b: *std.Build) !void {
 
     if (use_libssh and !use_libssh2) {
         curl.root_module.linkSystemLibrary("ssh", .{});
-    }
-
-    if (use_wolfssh and !use_libssh2 and !use_libssh) {
-        if (use_wolfssl) {
-            curl.root_module.linkSystemLibrary("wolfssh", .{});
-        } else {
-            std.log.warn("wolfSSH requires wolfSSL. Skipping.", .{});
-        }
     }
 
     if (use_gsasl) {
@@ -626,7 +618,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     const curl_config = b.addConfigHeader(.{
-        .style = .{ .cmake = upstream.path("lib/curl_config.h.cmake") },
+        .style = .{ .cmake = upstream.path("lib/curl_config-cmake.h.in") },
         .include_path = "curl_config.h",
     }, .{
         .CURL_CA_BUNDLE = if (std.mem.eql(u8, ca_bundle, "auto")) null else ca_bundle,
@@ -710,7 +702,7 @@ pub fn build(b: *std.Build) !void {
         .HAVE_FNMATCH = target.result.os.tag != .windows,
         .HAVE_BASENAME = true,
         .HAVE_BOOL_T = true,
-        .HAVE_BUILTIN_AVAILABLE = null,
+        .HAVE_BUILTIN_AVAILABLE = target.result.os.tag.isDarwin(),
         .HAVE_CLOCK_GETTIME_MONOTONIC = target.result.os.tag != .windows,
         .HAVE_CLOCK_GETTIME_MONOTONIC_RAW = target.result.os.tag == .linux or target.result.os.tag.isDarwin(),
         .HAVE_CLOSESOCKET = target.result.os.tag == .windows,
@@ -749,7 +741,7 @@ pub fn build(b: *std.Build) !void {
         .HAVE_GETPASS_R = target.result.os.isAtLeast(.netbsd, .{ .major = 7, .minor = 0, .patch = 0 }) orelse false,
         .HAVE_GETPEERNAME = target.result.os.tag != .wasi,
         .HAVE_GETSOCKNAME = target.result.os.tag != .wasi,
-        .HAVE_IF_NAMETOINDEX = target.result.os.tag != .windows and target.result.os.tag != .wasi,
+        .HAVE_IF_NAMETOINDEX = target.result.os.tag != .wasi,
         .HAVE_GETPWUID = target.result.os.tag != .windows and target.result.os.tag != .wasi,
         .HAVE_GETPWUID_R = target.result.os.tag != .windows and target.result.os.tag != .wasi,
         .HAVE_GETRLIMIT = target.result.os.tag != .windows and target.result.os.tag != .wasi,
@@ -757,9 +749,8 @@ pub fn build(b: *std.Build) !void {
         .HAVE_GLIBC_STRERROR_R = target.result.isGnuLibC(),
         .HAVE_GMTIME_R = target.result.os.tag != .windows,
         .HAVE_GSSAPI = null,
-        .HAVE_GSSAPI_GSSAPI_GENERIC_H = null,
-        .HAVE_GSSAPI_GSSAPI_H = null,
         .HAVE_GSSGNU = null,
+        .CURL_KRB5_VERSION = null,
         .HAVE_IFADDRS_H = target.result.os.tag != .windows,
         .HAVE_INET_NTOP = target.result.os.tag != .windows,
         .HAVE_INET_PTON = target.result.os.tag != .windows,
@@ -783,6 +774,7 @@ pub fn build(b: *std.Build) !void {
         .HAVE_BROTLI = use_brotli,
         .HAVE_ZSTD = use_zstd,
         .HAVE_LOCALE_H = true,
+        .HAVE_LOCALTIME_R = target.result.os.tag != .windows,
         .HAVE_LONGLONG = true,
         .HAVE_SUSECONDS_T = target.result.os.tag != .windows,
         .HAVE_MSG_NOSIGNAL = target.result.os.tag != .windows and target.result.os.tag != .wasi,
@@ -873,7 +865,7 @@ pub fn build(b: *std.Build) !void {
         .HAVE_SYS_UN_H = target.result.os.tag != .windows,
         .HAVE_SYS_UTIME_H = target.result.os.tag == .windows,
         .HAVE_TERMIOS_H = target.result.os.tag != .windows,
-        .HAVE_TERMIO_H = target.result.isGnuLibC(),
+        .HAVE_TERMIO_H = null,
         .HAVE_UNISTD_H = true,
         .HAVE_UTIME = true,
         .HAVE_UTIMES = target.result.os.tag != .windows,
@@ -910,7 +902,6 @@ pub fn build(b: *std.Build) !void {
         .HAVE_WOLFSSL_FULL_BIO = use_wolfssl and false, // TODO
         .USE_LIBSSH = use_libssh and !use_libssh2,
         .USE_LIBSSH2 = use_libssh2,
-        .USE_WOLFSSH = use_wolfssh and use_wolfssl and !use_libssh2 and !use_libssh,
         .USE_LIBPSL = use_libpsl,
         .USE_OPENLDAP = !disable_ldap and !use_win32_ldap, // TODO
         .USE_OPENSSL = use_openssl,
@@ -926,13 +917,12 @@ pub fn build(b: *std.Build) !void {
         .USE_QUICHE = use_quiche,
         .USE_OPENSSL_QUIC = use_openssl_quic,
         .HAVE_QUICHE_CONN_SET_QLOG_FD = null, // TODO
-        .USE_MSH3 = use_msh3,
         .USE_UNIX_SOCKETS = target.result.os.tag == .windows or enable_unix_sockets,
         .USE_WIN32_LARGE_FILES = target.result.os.tag == .windows,
         .USE_WINDOWS_SSPI = enable_windows_sspi,
         .USE_SCHANNEL = use_schannel,
         .USE_WATT32 = null, // DOS
-        .CURL_WITH_MULTI_SSL = with_multi_sll,
+        .CURL_WITH_MULTI_SSL = with_multi_ssl,
         .VERSION = b.fmt("{f}", .{version}),
         ._FILE_OFFSET_BITS = 64,
         ._LARGE_FILES = null, // OS/400
@@ -950,6 +940,7 @@ pub fn build(b: *std.Build) !void {
         .USE_ECH = ech,
         .HAVE_WOLFSSL_CTX_GENERATEECHCONFIG = null, // TODO
         .HAVE_SSL_SET1_ECH_CONFIG_LIST = null, // TODO
+        .HAVE_DES_ECB_ENCRYPT = false, // TODO
     });
     curl.addConfigHeader(curl_config);
     exe.root_module.addConfigHeader(curl_config);
@@ -995,10 +986,13 @@ fn dependentBoolOption(
 const lib_curlx_sources: []const []const u8 = &.{
     "curlx/base64.c",
     "curlx/dynbuf.c",
+    "curlx/fopen.c",
     "curlx/inet_ntop.c",
     "curlx/inet_pton.c",
     "curlx/multibyte.c",
     "curlx/nonblock.c",
+    "curlx/strcopy.c",
+    "curlx/strerr.c",
     "curlx/strparse.c",
     "curlx/timediff.c",
     "curlx/timeval.c",
@@ -1014,10 +1008,14 @@ const lib_curlx_headers: []const []const u8 = &.{
     "curlx/base64.h",
     "curlx/curlx.h",
     "curlx/dynbuf.h",
+    "curlx/fopen.h",
     "curlx/inet_ntop.h",
     "curlx/inet_pton.h",
     "curlx/multibyte.h",
     "curlx/nonblock.h",
+    "curlx/snprintf.h",
+    "curlx/strcopy.h",
+    "curlx/strerr.h",
     "curlx/strparse.h",
     "curlx/timediff.h",
     "curlx/timeval.h",
@@ -1053,12 +1051,12 @@ const lib_vauth_headers: []const []const u8 = &.{
 
 /// `LIB_VTLS_CFILES` in `lib/Makefile.inc`.
 const lib_vtls_sources: []const []const u8 = &.{
+    "vtls/apple.c",
     "vtls/cipher_suite.c",
     "vtls/gtls.c",
     "vtls/hostcheck.c",
     "vtls/keylog.c",
     "vtls/mbedtls.c",
-    "vtls/mbedtls_threadlock.c",
     "vtls/openssl.c",
     "vtls/rustls.c",
     "vtls/schannel.c",
@@ -1072,12 +1070,12 @@ const lib_vtls_sources: []const []const u8 = &.{
 
 /// `LIB_VTLS_HFILES` in `lib/Makefile.inc`.
 const lib_vtls_headers: []const []const u8 = &.{
+    "vtls/apple.h",
     "vtls/cipher_suite.h",
     "vtls/gtls.h",
     "vtls/hostcheck.h",
     "vtls/keylog.h",
     "vtls/mbedtls.h",
-    "vtls/mbedtls_threadlock.h",
     "vtls/openssl.h",
     "vtls/rustls.h",
     "vtls/schannel.h",
@@ -1092,7 +1090,6 @@ const lib_vtls_headers: []const []const u8 = &.{
 
 /// `LIB_VQUIC_CFILES` in `lib/Makefile.inc`.
 const lib_vquic_sources: []const []const u8 = &.{
-    "vquic/curl_msh3.c",
     "vquic/curl_ngtcp2.c",
     "vquic/curl_osslq.c",
     "vquic/curl_quiche.c",
@@ -1102,7 +1099,6 @@ const lib_vquic_sources: []const []const u8 = &.{
 
 /// `LIB_VQUIC_HFILES` in `lib/Makefile.inc`.
 const lib_vquic_headers: []const []const u8 = &.{
-    "vquic/curl_msh3.h",
     "vquic/curl_ngtcp2.h",
     "vquic/curl_osslq.h",
     "vquic/curl_quiche.h",
@@ -1115,13 +1111,12 @@ const lib_vquic_headers: []const []const u8 = &.{
 const lib_vssh_sources: []const []const u8 = &.{
     "vssh/libssh.c",
     "vssh/libssh2.c",
-    "vssh/curl_path.c",
-    "vssh/wolfssh.c",
+    "vssh/vssh.c",
 };
 
 /// `LIB_VSSH_HFILES` in `lib/Makefile.inc`.
 const lib_vssh_headers: []const []const u8 = &.{
-    "vssh/curl_path.h",
+    "vssh/vssh.h",
     "vssh/ssh.h",
 };
 
@@ -1138,6 +1133,7 @@ const lib_sources: []const []const u8 = &.{
     "cf-h2-proxy.c",
     "cf-haproxy.c",
     "cf-https-connect.c",
+    "cf-ip-happy.c",
     "cf-socket.c",
     "cfilters.c",
     "conncache.c",
@@ -1146,9 +1142,9 @@ const lib_sources: []const []const u8 = &.{
     "cookie.c",
     "cshutdn.c",
     "curl_addrinfo.c",
-    "curl_des.c",
     "curl_endian.c",
     "curl_fnmatch.c",
+    "curl_fopen.c",
     "curl_get_line.c",
     "curl_gethostname.c",
     "curl_gssapi.c",
@@ -1158,6 +1154,7 @@ const lib_sources: []const []const u8 = &.{
     "curl_rtmp.c",
     "curl_sasl.c",
     "curl_sha512_256.c",
+    "curl_share.c",
     "curl_sspi.c",
     "curl_threads.c",
     "curl_trc.c",
@@ -1173,7 +1170,6 @@ const lib_sources: []const []const u8 = &.{
     "fake_addrinfo.c",
     "file.c",
     "fileinfo.c",
-    "fopen.c",
     "formdata.c",
     "ftp.c",
     "ftplistparser.c",
@@ -1200,7 +1196,6 @@ const lib_sources: []const []const u8 = &.{
     "idn.c",
     "if2ip.c",
     "imap.c",
-    "krb5.c",
     "ldap.c",
     "llist.c",
     "macos.c",
@@ -1212,6 +1207,7 @@ const lib_sources: []const []const u8 = &.{
     "mqtt.c",
     "multi.c",
     "multi_ev.c",
+    "multi_ntfy.c",
     "netrc.c",
     "noproxy.c",
     "openldap.c",
@@ -1221,14 +1217,13 @@ const lib_sources: []const []const u8 = &.{
     "progress.c",
     "psl.c",
     "rand.c",
-    "rename.c",
+    "ratelimit.c",
     "request.c",
     "rtsp.c",
     "select.c",
     "sendf.c",
     "setopt.c",
     "sha256.c",
-    "share.c",
     "slist.c",
     "smb.c",
     "smtp.c",
@@ -1236,7 +1231,6 @@ const lib_sources: []const []const u8 = &.{
     "socks.c",
     "socks_gssapi.c",
     "socks_sspi.c",
-    "speedcheck.c",
     "splay.c",
     "strcase.c",
     "strdup.c",
@@ -1268,6 +1262,7 @@ const lib_headers: []const []const u8 = &.{
     "cf-h2-proxy.h",
     "cf-haproxy.h",
     "cf-https-connect.h",
+    "cf-ip-happy.h",
     "cf-socket.h",
     "cfilters.h",
     "conncache.h",
@@ -1277,18 +1272,16 @@ const lib_headers: []const []const u8 = &.{
     "cookie.h",
     "curl_addrinfo.h",
     "curl_ctype.h",
-    "curl_des.h",
     "curl_endian.h",
     "curl_fnmatch.h",
+    "curl_fopen.h",
     "curl_get_line.h",
     "curl_gethostname.h",
     "curl_gssapi.h",
     "curl_hmac.h",
-    "curl_krb5.h",
     "curl_ldap.h",
     "curl_md4.h",
     "curl_md5.h",
-    "curl_memory.h",
     "curl_memrchr.h",
     "curl_ntlm_core.h",
     "curl_printf.h",
@@ -1299,6 +1292,7 @@ const lib_headers: []const []const u8 = &.{
     "curl_setup_once.h",
     "curl_sha256.h",
     "curl_sha512_256.h",
+    "curl_share.h",
     "curl_sspi.h",
     "curl_threads.h",
     "curl_trc.h",
@@ -1314,7 +1308,6 @@ const lib_headers: []const []const u8 = &.{
     "fake_addrinfo.h",
     "file.h",
     "fileinfo.h",
-    "fopen.h",
     "formdata.h",
     "ftp.h",
     "ftplistparser.h",
@@ -1340,11 +1333,11 @@ const lib_headers: []const []const u8 = &.{
     "imap.h",
     "llist.h",
     "macos.h",
-    "memdebug.h",
     "mime.h",
     "mqtt.h",
     "multihandle.h",
     "multi_ev.h",
+    "multi_ntfy.h",
     "multiif.h",
     "netrc.h",
     "noproxy.h",
@@ -1354,7 +1347,7 @@ const lib_headers: []const []const u8 = &.{
     "progress.h",
     "psl.h",
     "rand.h",
-    "rename.h",
+    "ratelimit.h",
     "request.h",
     "rtsp.h",
     "select.h",
@@ -1363,7 +1356,6 @@ const lib_headers: []const []const u8 = &.{
     "setup-os400.h",
     "setup-vms.h",
     "setup-win32.h",
-    "share.h",
     "sigpipe.h",
     "slist.h",
     "smb.h",
@@ -1371,7 +1363,6 @@ const lib_headers: []const []const u8 = &.{
     "sockaddr.h",
     "socketpair.h",
     "socks.h",
-    "speedcheck.h",
     "splay.h",
     "strcase.h",
     "strdup.h",
@@ -1399,30 +1390,39 @@ const headers = lib_headers ++ lib_vauth_headers ++ lib_vtls_headers ++ lib_vqui
 /// `CURLX_CFILES` in `src/Makefile.inc`.
 const curlx_sources: []const []const u8 = &.{
     "curlx/base64.c",
-    "curlx/multibyte.c",
     "curlx/dynbuf.c",
+    "curlx/fopen.c",
+    "curlx/multibyte.c",
     "curlx/nonblock.c",
+    "curlx/strcopy.c",
+    "curlx/strerr.c",
     "curlx/strparse.c",
     "curlx/timediff.c",
     "curlx/timeval.c",
     "curlx/version_win32.c",
     "curlx/wait.c",
     "curlx/warnless.c",
+    "curlx/winapi.c",
 };
 
 /// `CURLX_HFILES` in `src/Makefile.inc`.
 const curlx_headers: []const []const u8 = &.{
-    "curlx/binmode.h",
-    "curlx/multibyte.h",
     "curl_setup.h",
+    "curlx/binmode.h",
     "curlx/dynbuf.h",
+    "curlx/fopen.h",
+    "curlx/multibyte.h",
     "curlx/nonblock.h",
+    "curlx/snprintf.h",
+    "curlx/strcopy.h",
+    "curlx/strerr.h",
     "curlx/strparse.h",
     "curlx/timediff.h",
     "curlx/timeval.h",
     "curlx/version_win32.h",
     "curlx/wait.h",
     "curlx/warnless.h",
+    "curlx/winapi.h",
 };
 
 /// `CURL_CFILES` in `src/Makefile.inc`.
@@ -1470,6 +1470,7 @@ const exe_sources: []const []const u8 = &.{
     "tool_writeout_json.c",
     "tool_xattr.c",
     "var.c",
+    "toolx/tool_time.c",
 };
 
 /// `CURL_HFILES` in `src/Makefile.inc`.
@@ -1519,4 +1520,5 @@ const exe_header: []const []const u8 = &.{
     "tool_writeout_json.h",
     "tool_xattr.h",
     "var.h",
+    "toolx/tool_time.h",
 };
