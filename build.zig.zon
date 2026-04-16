@@ -1,7 +1,7 @@
 .{
     .name = .curl,
     .version = "8.18.0",
-    .minimum_zig_version = "0.15.1",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .curl = .{
             .url = "git+https://github.com/curl/curl?ref=curl-8_18_0#2eebc58c4b8d68c98c8344381a9f6df4cca838fd",
@@ -23,8 +23,8 @@
             .lazy = true,
         },
         .openssl = .{
-            .url = "git+https://github.com/allyourcodebase/openssl#cad7ccba47e42fa608ca655ec14ae33202df86e1",
-            .hash = "openssl-3.3.2-TC9C3Wa3ZACgB1hZbrLOQCK9XccIBaW_F3imFfIeYP06",
+            .url = "git+https://github.com/allyourcodebase/openssl.git#0ac677650d43eadf669067d050992118b13338d2",
+            .hash = "openssl-3.3.2-TC9C3Ze3ZABaKR5hc8KRnRPhTClKrKQKqTnXTUYkvmSR",
             .lazy = true,
         },
         .mbedtls = .{

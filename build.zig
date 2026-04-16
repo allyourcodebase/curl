@@ -577,7 +577,7 @@ pub fn build(b: *std.Build) !void {
                 "/usr/local/share/certs/ca-root-nss.crt",
                 "/etc/ssl/cert.pem",
             }) |search_ca_bundle_path| {
-                std.fs.accessAbsolute(search_ca_bundle_path, .{}) catch continue;
+                std.Io.Dir.cwd().access(b.graph.io, search_ca_bundle_path, .{}) catch continue;
                 // std.log.info("Found CA bundle: {s}", .{search_ca_bundle_path});
                 ca_bundle = search_ca_bundle_path;
                 ca_bundle_set = true;
@@ -587,9 +587,9 @@ pub fn build(b: *std.Build) !void {
 
         if (ca_path_autodetect and !ca_path_set) {
             const search_ca_path: []const u8 = "/etc/ssl/certs";
-            const ca_dir = try std.fs.openDirAbsolute(search_ca_path, .{ .iterate = true });
+            const ca_dir = try std.Io.Dir.cwd().openDir(b.graph.io, search_ca_path, .{ .iterate = true });
             var ca_dir_it = ca_dir.iterate();
-            while (try ca_dir_it.next()) |item| {
+            while (try ca_dir_it.next(b.graph.io)) |item| {
                 if (item.name.len != 10) continue;
                 if (!std.mem.endsWith(u8, item.name, ".0")) continue;
                 for (item.name[0..8]) |c| {
@@ -605,7 +605,7 @@ pub fn build(b: *std.Build) !void {
 
         var ca_embed_set = false;
         if (ca_embed) |embed_path| {
-            if (std.fs.accessAbsolute(embed_path, .{})) |_| {
+            if (std.Io.Dir.cwd().access(b.graph.io, embed_path, .{})) |_| {
                 ca_embed_set = true;
                 // std.log.info("Found CA bundle to embed: {s}", .{embed_path});
             } else |err| {
