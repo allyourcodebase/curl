@@ -1,4 +1,5 @@
 const std = @import("std");
+const libcquery = @import("libcquery");
 
 const version = std.SemanticVersion.parse(@import("build.zig.zon").version) catch unreachable;
 
@@ -614,6 +615,9 @@ pub fn build(b: *std.Build) !void {
         }
     }
 
+    const lc_features = libcquery.libc_features.detect(target.result);
+    const lc_headers = libcquery.libc_headers.detect(target.result);
+
     const curl_config = b.addConfigHeader(.{
         .style = .{ .cmake = upstream.path("lib/curl_config-cmake.h.in") },
         .include_path = "curl_config.h",
@@ -672,30 +676,10 @@ pub fn build(b: *std.Build) !void {
         .USE_WIN32_LDAP = target.result.os.tag == .windows and use_win32_ldap and !disable_ldap, // Assumes 'NOT WINDOWS_STORE'
         .USE_IPV6 = enable_ipv6,
         .HAVE_ALARM = target.result.os.tag != .windows and target.result.os.tag != .wasi,
-        .HAVE_ARC4RANDOM = switch (target.result.os.tag) {
-            .dragonfly,
-            .netbsd,
-            .freebsd,
-            .openbsd,
-            .macos,
-            .ios,
-            .tvos,
-            .watchos,
-            .visionos,
-            .wasi,
-            => true,
-            else => false,
-        },
-        .HAVE_ARPA_INET_H = target.result.os.tag != .windows,
+        .HAVE_ARC4RANDOM = lc_features.arc4random or target.result.os.tag == .wasi,
+        .HAVE_ARPA_INET_H = lc_headers.arpa_inet_h,
         .HAVE_ATOMIC = true,
-        .HAVE_ACCEPT4 = switch (target.result.os.tag) {
-            .linux => true,
-            .freebsd => target.result.os.isAtLeast(.freebsd, .{ .major = 10, .minor = 0, .patch = 0 }) orelse false,
-            .dragonfly => target.result.os.isAtLeast(.dragonfly, .{ .major = 4, .minor = 3, .patch = 0 }) orelse false,
-            .netbsd => target.result.os.isAtLeast(.netbsd, .{ .major = 8, .minor = 0, .patch = 0 }) orelse false,
-            .openbsd => false,
-            else => false,
-        },
+        .HAVE_ACCEPT4 = lc_features.accept4,
         .HAVE_FNMATCH = target.result.os.tag != .windows,
         .HAVE_BASENAME = true,
         .HAVE_BOOL_T = true,
@@ -710,32 +694,20 @@ pub fn build(b: *std.Build) !void {
         .HAVE_FCNTL_H = true,
         .HAVE_FCNTL_O_NONBLOCK = target.result.os.tag != .windows,
         .HAVE_FREEADDRINFO = target.result.os.tag != .wasi,
-        .HAVE_FSEEKO = target.result.os.tag != .windows,
-        .HAVE_DECL_FSEEKO = target.result.os.tag != .windows,
+        .HAVE_FSEEKO = lc_features.fseeko,
+        .HAVE_DECL_FSEEKO = lc_features.fseeko,
         .HAVE_FTRUNCATE = true,
         .HAVE_GETADDRINFO = target.result.os.tag != .wasi,
         .HAVE_GETADDRINFO_THREADSAFE = target.result.os.tag != .wasi and target.result.os.tag != .openbsd,
         .HAVE_GETEUID = target.result.os.tag != .windows and target.result.os.tag != .wasi,
         .HAVE_GETPPID = target.result.os.tag != .windows and target.result.os.tag != .wasi,
-        .HAVE_GETHOSTBYNAME_R = switch (target.result.os.tag) {
-            .linux => true,
-            .windows, .wasi => false,
-            .freebsd => target.result.os.isAtLeast(.freebsd, .{ .major = 6, .minor = 2, .patch = 0 }) orelse false,
-            .dragonfly => target.result.os.isAtLeast(.dragonfly, .{ .major = 2, .minor = 1, .patch = 0 }) orelse false,
-            else => false,
-        },
+        .HAVE_GETHOSTBYNAME_R = lc_features.gethostbyname_r,
         .HAVE_GETHOSTBYNAME_R_3 = null,
         .HAVE_GETHOSTBYNAME_R_5 = null,
-        .HAVE_GETHOSTBYNAME_R_6 = switch (target.result.os.tag) {
-            .linux => true,
-            .windows, .wasi => false,
-            .freebsd => target.result.os.isAtLeast(.freebsd, .{ .major = 6, .minor = 2, .patch = 0 }) orelse false,
-            .dragonfly => target.result.os.isAtLeast(.dragonfly, .{ .major = 2, .minor = 1, .patch = 0 }) orelse false,
-            else => false,
-        },
+        .HAVE_GETHOSTBYNAME_R_6 = lc_features.gethostbyname_r,
         .HAVE_GETHOSTNAME = target.result.os.tag != .wasi,
-        .HAVE_GETIFADDRS = target.result.os.tag != .windows and target.result.os.tag != .wasi,
-        .HAVE_GETPASS_R = target.result.os.isAtLeast(.netbsd, .{ .major = 7, .minor = 0, .patch = 0 }) orelse false,
+        .HAVE_GETIFADDRS = lc_features.getifaddrs,
+        .HAVE_GETPASS_R = lc_features.getpass_r,
         .HAVE_GETPEERNAME = target.result.os.tag != .wasi,
         .HAVE_GETSOCKNAME = target.result.os.tag != .wasi,
         .HAVE_IF_NAMETOINDEX = target.result.os.tag != .wasi,
@@ -748,7 +720,7 @@ pub fn build(b: *std.Build) !void {
         .HAVE_GSSAPI = null,
         .HAVE_GSSGNU = null,
         .CURL_KRB5_VERSION = null,
-        .HAVE_IFADDRS_H = target.result.os.tag != .windows,
+        .HAVE_IFADDRS_H = lc_headers.ifaddrs_h,
         .HAVE_INET_NTOP = target.result.os.tag != .windows,
         .HAVE_INET_PTON = target.result.os.tag != .windows,
         .HAVE_SA_FAMILY_T = target.result.os.tag != .windows,
@@ -775,8 +747,8 @@ pub fn build(b: *std.Build) !void {
         .HAVE_LONGLONG = true,
         .HAVE_SUSECONDS_T = target.result.os.tag != .windows,
         .HAVE_MSG_NOSIGNAL = target.result.os.tag != .windows and target.result.os.tag != .wasi,
-        .HAVE_NETDB_H = target.result.os.tag != .windows,
-        .HAVE_NETINET_IN_H = target.result.os.tag != .windows,
+        .HAVE_NETDB_H = lc_headers.netdb_h,
+        .HAVE_NETINET_IN_H = lc_headers.netinet_in_h,
         .HAVE_NETINET_IN6_H = null,
         .HAVE_NETINET_TCP_H = target.result.os.tag != .windows,
         .HAVE_NETINET_UDP_H = target.result.os.tag != .windows,
@@ -784,21 +756,8 @@ pub fn build(b: *std.Build) !void {
         .HAVE_NET_IF_H = target.result.os.tag != .windows,
         .HAVE_OLD_GSSMIT = null,
         .HAVE_PIPE = target.result.os.tag != .windows and target.result.os.tag != .wasi,
-        .HAVE_PIPE2 = switch (target.result.os.tag) {
-            .linux => true,
-            .dragonfly, .freebsd, .netbsd, .openbsd => true,
-            else => false,
-        },
-        .HAVE_EVENTFD = switch (target.result.os.tag) {
-            .windows, .wasi => false,
-            .linux => if (target.result.isMuslLibC())
-                true
-            else
-                target.result.os.isAtLeast(.linux, .{ .major = 2, .minor = 8, .patch = 0 }),
-            .freebsd => target.result.os.isAtLeast(.freebsd, .{ .major = 13, .minor = 0, .patch = 0 }) orelse false,
-            .netbsd => target.result.os.isAtLeast(.netbsd, .{ .major = 10, .minor = 0, .patch = 0 }) orelse false,
-            else => !target.result.os.tag.isDarwin(),
-        },
+        .HAVE_PIPE2 = lc_features.pipe2,
+        .HAVE_EVENTFD = lc_features.eventfd,
         .HAVE_POLL = target.result.os.tag != .windows,
         .HAVE_POLL_H = target.result.os.tag != .windows,
         .HAVE_POSIX_STRERROR_R = switch (target.result.os.tag) {
@@ -813,14 +772,7 @@ pub fn build(b: *std.Build) !void {
         .HAVE_SCHED_YIELD = target.result.os.tag != .windows,
         .HAVE_SEND = true,
         .HAVE_SENDMSG = target.result.os.tag != .windows and target.result.os.tag != .wasi,
-        .HAVE_SENDMMSG = switch (target.result.os.tag) {
-            .windows, .wasi => false,
-            .linux => if (target.result.isMuslLibC())
-                true
-            else
-                target.result.os.isAtLeast(.linux, .{ .major = 2, .minor = 14, .patch = 0 }),
-            else => !target.result.os.tag.isDarwin(),
-        },
+        .HAVE_SENDMMSG = lc_features.sendmmsg,
         .HAVE_FSETXATTR = switch (target.result.os.tag) {
             .linux => true,
             .netbsd => true,
@@ -852,21 +804,21 @@ pub fn build(b: *std.Build) !void {
         .HAVE_STRCASECMP = target.result.os.tag != .windows,
         .HAVE_STRCMPI = null,
         .HAVE_STRDUP = true,
-        .HAVE_STRERROR_R = target.result.os.tag != .windows,
+        .HAVE_STRERROR_R = lc_features.strerror_r,
         .HAVE_STRICMP = null,
         .HAVE_STRINGS_H = true,
         .HAVE_STROPTS_H = target.result.isMuslLibC(),
-        .HAVE_MEMRCHR = target.result.os.tag != .windows and !target.result.os.tag.isDarwin() and target.result.os.tag != .wasi,
+        .HAVE_MEMRCHR = lc_features.memrchr,
         .HAVE_STRUCT_SOCKADDR_STORAGE = true,
         .HAVE_STRUCT_TIMEVAL = true,
-        .HAVE_SYS_EVENTFD_H = target.result.os.tag != .windows and !target.result.os.tag.isDarwin() and target.result.os.tag != .openbsd,
-        .HAVE_SYS_FILIO_H = target.result.os.tag.isBSD(),
+        .HAVE_SYS_EVENTFD_H = lc_headers.sys_eventfd_h,
+        .HAVE_SYS_FILIO_H = lc_headers.sys_filio_h,
         .HAVE_SYS_IOCTL_H = target.result.os.tag != .windows,
         .HAVE_SYS_PARAM_H = true,
         .HAVE_SYS_POLL_H = target.result.os.tag != .windows,
         .HAVE_SYS_RESOURCE_H = target.result.os.tag != .windows and target.result.os.tag != .wasi,
         .HAVE_SYS_SELECT_H = target.result.os.tag != .windows,
-        .HAVE_SYS_SOCKIO_H = target.result.os.tag.isBSD(),
+        .HAVE_SYS_SOCKIO_H = lc_headers.sys_sockio_h,
         .HAVE_SYS_STAT_H = true,
         .HAVE_SYS_TYPES_H = true,
         .HAVE_SYS_UN_H = target.result.os.tag != .windows,

@@ -32,6 +32,10 @@
             .hash = "mbedtls-3.6.4-E4NUR2wWAAAUSvVbho9aaU31-e4D8glu9l1VfxKezBkV",
             .lazy = true,
         },
+        .libcquery = .{
+            .url = "git+https://github.com/agagniere/libc-query#98897107f13b5f10f710ee5b21812f682f98e6d5",
+            .hash = "libcquery-0.1.0-_2254YQLAQBXPKSpriihbtzC7aOl5Xv7wIL7mmrYZavv",
+        },
     },
     .paths = .{
         "build.zig",
