@@ -33,8 +33,8 @@
             .lazy = true,
         },
         .libcquery = .{
-            .url = "git+https://github.com/agagniere/libc-query#796455cd7f39fc5590ed6ea58f0a765ef5f38d3d",
-            .hash = "libcquery-0.1.0-_2254WErAQC0yLZZR-KJt_U2dh7VwVwfyai4Qg5ImoeP",
+            .url = "git+https://github.com/agagniere/libc-query#b441e4923bb7d39018e9f5aaaf9ed0189349e173",
+            .hash = "libcquery-0.1.1-_2254XxFAQB6zE9xGH9hJSglKeE80Yq1fgsaNiokLP2v",
         },
     },
     .paths = .{
