@@ -691,7 +691,9 @@ pub fn build(b: *std.Build) !void {
         .HAVE_ACCEPT4 = switch (target.result.os.tag) {
             .linux => true,
             .freebsd => target.result.os.isAtLeast(.freebsd, .{ .major = 10, .minor = 0, .patch = 0 }) orelse false,
+            .dragonfly => target.result.os.isAtLeast(.dragonfly, .{ .major = 4, .minor = 3, .patch = 0 }) orelse false,
             .netbsd => target.result.os.isAtLeast(.netbsd, .{ .major = 8, .minor = 0, .patch = 0 }) orelse false,
+            .openbsd => false,
             else => false,
         },
         .HAVE_FNMATCH = target.result.os.tag != .windows,
@@ -712,7 +714,7 @@ pub fn build(b: *std.Build) !void {
         .HAVE_DECL_FSEEKO = target.result.os.tag != .windows,
         .HAVE_FTRUNCATE = true,
         .HAVE_GETADDRINFO = target.result.os.tag != .wasi,
-        .HAVE_GETADDRINFO_THREADSAFE = target.result.os.tag != .wasi,
+        .HAVE_GETADDRINFO_THREADSAFE = target.result.os.tag != .wasi and target.result.os.tag != .openbsd,
         .HAVE_GETEUID = target.result.os.tag != .windows and target.result.os.tag != .wasi,
         .HAVE_GETPPID = target.result.os.tag != .windows and target.result.os.tag != .wasi,
         .HAVE_GETHOSTBYNAME_R = switch (target.result.os.tag) {
@@ -793,6 +795,8 @@ pub fn build(b: *std.Build) !void {
                 true
             else
                 target.result.os.isAtLeast(.linux, .{ .major = 2, .minor = 8, .patch = 0 }),
+            .freebsd => target.result.os.isAtLeast(.freebsd, .{ .major = 13, .minor = 0, .patch = 0 }) orelse false,
+            .netbsd => target.result.os.isAtLeast(.netbsd, .{ .major = 10, .minor = 0, .patch = 0 }) orelse false,
             else => !target.result.os.tag.isDarwin(),
         },
         .HAVE_POLL = target.result.os.tag != .windows,
@@ -817,8 +821,16 @@ pub fn build(b: *std.Build) !void {
                 target.result.os.isAtLeast(.linux, .{ .major = 2, .minor = 14, .patch = 0 }),
             else => !target.result.os.tag.isDarwin(),
         },
-        .HAVE_FSETXATTR = target.result.os.tag == .linux or target.result.os.tag == .netbsd,
-        .HAVE_FSETXATTR_5 = target.result.os.tag == .linux or target.result.os.tag == .netbsd,
+        .HAVE_FSETXATTR = switch (target.result.os.tag) {
+            .linux => true,
+            .netbsd => true,
+            else => false,
+        },
+        .HAVE_FSETXATTR_5 = switch (target.result.os.tag) {
+            .linux => true,
+            .netbsd => true,
+            else => false,
+        },
         .HAVE_FSETXATTR_6 = null,
         .HAVE_SETLOCALE = true,
         .HAVE_SETMODE = target.result.os.tag == .windows or target.result.os.tag.isBSD(),
@@ -847,7 +859,7 @@ pub fn build(b: *std.Build) !void {
         .HAVE_MEMRCHR = target.result.os.tag != .windows and !target.result.os.tag.isDarwin() and target.result.os.tag != .wasi,
         .HAVE_STRUCT_SOCKADDR_STORAGE = true,
         .HAVE_STRUCT_TIMEVAL = true,
-        .HAVE_SYS_EVENTFD_H = target.result.os.tag != .windows and !target.result.os.tag.isDarwin(),
+        .HAVE_SYS_EVENTFD_H = target.result.os.tag != .windows and !target.result.os.tag.isDarwin() and target.result.os.tag != .openbsd,
         .HAVE_SYS_FILIO_H = target.result.os.tag.isBSD(),
         .HAVE_SYS_IOCTL_H = target.result.os.tag != .windows,
         .HAVE_SYS_PARAM_H = true,
