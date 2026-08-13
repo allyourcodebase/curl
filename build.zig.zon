@@ -32,6 +32,11 @@
             .hash = "mbedtls-3.6.4-E4NUR2wWAAAUSvVbho9aaU31-e4D8glu9l1VfxKezBkV",
             .lazy = true,
         },
+        .boringssl = .{
+            .url = "git+https://github.com/allyourcodebase/boringssl.git#ec7cca75cbf5381ba4a9e111d1f12236f8f2bd6a",
+            .hash = "boringssl-0.20260526.0-EhtkNaI5AAAUWRtpFwiFhqdvxjAMMWkcx-iHkKIppGBV",
+            .lazy = true,
+        },
     },
     .paths = .{
         "build.zig",

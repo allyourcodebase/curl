@@ -20,7 +20,8 @@ pub fn build(b: *std.Build) !void {
     const use_gnutls = dependentBoolOption(b, "use-gnutls", "Enable GnuTLS for SSL/TLS", false, enable_ssl, false);
     const use_rustls = dependentBoolOption(b, "use-rustls", "Enable Rustls for SSL/TLS", false, enable_ssl, false);
     const openssl_default = !(target.result.os.tag == .windows or use_schannel or use_mbedtls or use_wolfssl or use_gnutls or use_rustls);
-    const use_openssl = dependentBoolOption(b, "use-openssl", "Enable OpenSSL for SSL/TLS", openssl_default, enable_ssl, false);
+    const use_boringssl = dependentBoolOption(b, "use-boringssl", "Enable BoringSSL for SSL/TLS", false, enable_ssl, false);
+    const use_openssl = dependentBoolOption(b, "use-openssl", "Enable OpenSSL for SSL/TLS", openssl_default, enable_ssl, false) or use_boringssl;
 
     const default_ssl_backend = b.option(enum {
         wolfssl,
@@ -273,8 +274,6 @@ pub fn build(b: *std.Build) !void {
         disable_hsts = true;
     }
 
-    var have_boring_ssl = false; // TODO
-    _ = &have_boring_ssl;
     var have_awslc = false; // TODO
     _ = &have_awslc;
 
@@ -301,7 +300,7 @@ pub fn build(b: *std.Build) !void {
         curl.root_module.linkSystemLibrary("iphlpapi", .{});
         curl.root_module.linkSystemLibrary("bcrypt", .{});
 
-        if (use_schannel) {
+        if (use_schannel or use_boringssl) {
             curl.root_module.linkSystemLibrary("advapi32", .{});
             curl.root_module.linkSystemLibrary("crypt32", .{});
         }
@@ -311,21 +310,38 @@ pub fn build(b: *std.Build) !void {
     }
 
     if (use_openssl) {
-        // TODO BoringSSL, AWS-LC, LibreSSL, and quictls
-        if (b.systemIntegrationOption("openssl", .{})) {
-            curl.root_module.linkSystemLibrary("openssl", .{});
+        // TODO _curl_ca_bundle_supported
+        // TODO HAVE_AWSLC
+        // TODO HAVE_LIBRESSL
+        if (use_boringssl) {
+            if (b.systemIntegrationOption("boringssl", .{})) {
+                curl.root_module.linkSystemLibrary("ssl", .{});
+                curl.root_module.linkSystemLibrary("crypto", .{});
+                exe.root_module.linkSystemLibrary("ssl", .{});
+                exe.root_module.linkSystemLibrary("crypto", .{});
+            } else if (b.lazyDependency("boringssl", .{
+                .target = target,
+                .optimize = optimize,
+            })) |dependency| {
+                curl.root_module.linkLibrary(dependency.artifact("bcm"));
+                curl.root_module.linkLibrary(dependency.artifact("ssl"));
+                curl.root_module.linkLibrary(dependency.artifact("crypto"));
+                curl.root_module.addIncludePath(dependency.namedLazyPath("ssl_include"));
+            }
         } else {
-            if (b.lazyDependency("openssl", .{
+            if (b.systemIntegrationOption("openssl", .{})) {
+                curl.root_module.linkSystemLibrary("openssl", .{ .use_pkg_config = .force });
+            } else if (b.lazyDependency("openssl", .{
                 .target = target,
                 .optimize = optimize,
             })) |dependency| {
                 curl.root_module.linkLibrary(dependency.artifact("openssl"));
             }
         }
-        // TODO -DOPENSSL_SUPPRESS_DEPRECATED
-        // TODO HAVE_BORINGSSL
-        // TODO HAVE_AWSLC
+    } else {
+        std.debug.assert(!use_boringssl);
     }
+
     if (use_mbedtls) {
         // TODO HAVE_MBEDTLS_DES_CRYPT_ECB
         if (b.systemIntegrationOption("mbedtls", .{})) {
@@ -442,7 +458,7 @@ pub fn build(b: *std.Build) !void {
         } else if (use_openssl or use_wolfssl) {
             if (use_wolfssl) {
                 // ngtcp2_crypto_wolfssl
-            } else if (have_boring_ssl or have_awslc) {
+            } else if (use_boringssl or have_awslc) {
                 // ngtcp2_crypto_boringssl
             } else {
                 // ngtcp2_crypto_quictls
@@ -463,7 +479,7 @@ pub fn build(b: *std.Build) !void {
             std.debug.panic("MultiSSL cannot be enabled with HTTP/3 and vice versa.", .{});
         }
         // Quiche
-        if (!have_boring_ssl) {
+        if (!use_boringssl) {
             std.debug.panic("quiche requires BoringSSL", .{});
         }
         // TODO HAVE_QUICHE_CONN_SET_QLOG_FD
