@@ -177,10 +177,7 @@ pub fn build(b: *std.Build) !void {
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     const run_step = b.step("run", "Run curl");
     run_step.dependOn(&run_cmd.step);
@@ -323,7 +320,6 @@ pub fn build(b: *std.Build) !void {
                 .target = target,
                 .optimize = optimize,
             })) |dependency| {
-                curl.root_module.linkLibrary(dependency.artifact("bcm"));
                 curl.root_module.linkLibrary(dependency.artifact("ssl"));
                 curl.root_module.linkLibrary(dependency.artifact("crypto"));
                 curl.root_module.addIncludePath(dependency.namedLazyPath("ssl_include"));
@@ -768,7 +764,6 @@ pub fn build(b: *std.Build) !void {
         .HAVE_INET_NTOP = target.result.os.tag != .windows,
         .HAVE_INET_PTON = target.result.os.tag != .windows,
         .HAVE_SA_FAMILY_T = target.result.os.tag != .windows,
-        .HAVE_ADDRESS_FAMILY = target.result.os.tag == .windows,
         .HAVE_IOCTLSOCKET = target.result.os.tag == .windows,
         .HAVE_IOCTLSOCKET_CAMEL = null,
         .HAVE_IOCTLSOCKET_CAMEL_FIONBIO = null,
@@ -798,7 +793,6 @@ pub fn build(b: *std.Build) !void {
         .HAVE_NETINET_UDP_H = target.result.os.tag != .windows,
         .HAVE_LINUX_TCP_H = target.result.os.tag == .linux,
         .HAVE_NET_IF_H = target.result.os.tag != .windows,
-        .HAVE_OLD_GSSMIT = null,
         .HAVE_PIPE = target.result.os.tag != .windows and target.result.os.tag != .wasi,
         .HAVE_PIPE2 = switch (target.result.os.tag) {
             .linux => true,
@@ -883,7 +877,6 @@ pub fn build(b: *std.Build) !void {
         .HAVE_SYS_RESOURCE_H = target.result.os.tag != .windows and target.result.os.tag != .wasi,
         .HAVE_SYS_SELECT_H = target.result.os.tag != .windows,
         .HAVE_SYS_SOCKIO_H = target.result.os.tag.isBSD(),
-        .HAVE_SYS_STAT_H = true,
         .HAVE_SYS_TYPES_H = true,
         .HAVE_SYS_UN_H = target.result.os.tag != .windows,
         .HAVE_SYS_UTIME_H = target.result.os.tag == .windows,
@@ -897,20 +890,14 @@ pub fn build(b: *std.Build) !void {
         .HAVE_TIME_T_UNSIGNED = null,
         .NEED_REENTRANT = null,
         .CURL_OS = b.fmt("\"{s}\"", .{target.result.zigTriple(b.allocator) catch @panic("OOM")}),
-        .SIZEOF_INT_CODE = b.fmt("#define SIZEOF_INT {d}", .{target.result.cTypeByteSize(.int)}),
-        .SIZEOF_LONG_CODE = b.fmt("#define SIZEOF_LONG {d}", .{target.result.cTypeByteSize(.long)}),
-        .SIZEOF_LONG_LONG_CODE = b.fmt("#define SIZEOF_LONG_LONG {d}", .{target.result.cTypeByteSize(.longlong)}),
+        .SIZEOF_INT_CODE = b.fmt("#define SIZEOF_INT {d}", .{target.result.cTypeByteSize(.int).?}),
+        .SIZEOF_LONG_CODE = b.fmt("#define SIZEOF_LONG {d}", .{target.result.cTypeByteSize(.long).?}),
+        .SIZEOF_LONG_LONG_CODE = b.fmt("#define SIZEOF_LONG_LONG {d}", .{target.result.cTypeByteSize(.longlong).?}),
         .SIZEOF_OFF_T_CODE = b.fmt("#define SIZEOF_OFF_T {d}", .{8}),
         .SIZEOF_CURL_OFF_T_CODE = b.fmt("#define SIZEOF_CURL_OFF_T {d}", .{8}),
         .SIZEOF_CURL_SOCKET_T_CODE = b.fmt("#define SIZEOF_CURL_SOCKET_T {d}", .{@as(i64, if (target.result.os.tag == .windows) 8 else 4)}),
         .SIZEOF_SIZE_T_CODE = b.fmt("#define SIZEOF_SIZE_T {d}", .{target.result.ptrBitWidth() / 8}),
         .SIZEOF_TIME_T_CODE = b.fmt("#define SIZEOF_TIME_T {d}", .{8}),
-        .PACKAGE = "",
-        .PACKAGE_BUGREPORT = "curl",
-        .PACKAGE_NAME = "a suitable curl mailing list: https://curl.se/mail/",
-        .PACKAGE_STRING = "curl",
-        .PACKAGE_TARNAME = "curl",
-        .PACKAGE_VERSION = b.fmt("{f}", .{version}),
         .STDC_HEADERS = true,
         .USE_ARES = enable_ares,
         .USE_THREADS_POSIX = enable_threaded_resolver and target.result.os.tag != .windows and !target.result.os.tag.isBSD(),
@@ -921,8 +908,6 @@ pub fn build(b: *std.Build) !void {
         .USE_RUSTLS = use_rustls,
         .USE_WOLFSSL = use_wolfssl,
         .HAVE_WOLFSSL_DES_ECB_ENCRYPT = use_wolfssl and false, // TODO
-        .HAVE_WOLFSSL_BIO = use_wolfssl and false, // TODO
-        .HAVE_WOLFSSL_FULL_BIO = use_wolfssl and false, // TODO
         .USE_LIBSSH = use_libssh and !use_libssh2,
         .USE_LIBSSH2 = use_libssh2,
         .USE_LIBPSL = use_libpsl,
@@ -941,17 +926,11 @@ pub fn build(b: *std.Build) !void {
         .USE_OPENSSL_QUIC = use_openssl_quic,
         .HAVE_QUICHE_CONN_SET_QLOG_FD = null, // TODO
         .USE_UNIX_SOCKETS = target.result.os.tag == .windows or enable_unix_sockets,
-        .USE_WIN32_LARGE_FILES = target.result.os.tag == .windows,
         .USE_WINDOWS_SSPI = enable_windows_sspi,
         .USE_SCHANNEL = use_schannel,
         .USE_WATT32 = null, // DOS
         .CURL_WITH_MULTI_SSL = with_multi_ssl,
-        .VERSION = b.fmt("{f}", .{version}),
         ._FILE_OFFSET_BITS = 64,
-        ._LARGE_FILES = null, // OS/400
-        ._THREAD_SAFE = null, // AIX 4.3
-        .@"const" = null,
-        .size_t = null,
         .ssize_t = null,
         .HAVE_MACH_ABSOLUTE_TIME = target.result.os.tag.isDarwin(),
         .USE_WIN32_IDN = target.result.os.tag == .windows and use_win32_idn,

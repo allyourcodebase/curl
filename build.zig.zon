@@ -1,7 +1,7 @@
 .{
     .name = .curl,
     .version = "8.18.0",
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .curl = .{
             .url = "git+https://github.com/curl/curl?ref=curl-8_18_0#2eebc58c4b8d68c98c8344381a9f6df4cca838fd",
@@ -33,8 +33,8 @@
             .lazy = true,
         },
         .boringssl = .{
-            .url = "git+https://github.com/allyourcodebase/boringssl.git#ec7cca75cbf5381ba4a9e111d1f12236f8f2bd6a",
-            .hash = "boringssl-0.20260526.0-EhtkNaI5AAAUWRtpFwiFhqdvxjAMMWkcx-iHkKIppGBV",
+            .url = "git+https://github.com/allyourcodebase/boringssl.git#2bd755df0ce26ea196951b96f74602dd3ab6b58d",
+            .hash = "boringssl-0.20260526.0-EhtkNao-AAA8mv7IUtNDiDYgB7ILL4doC1mLG8YKOvGN",
             .lazy = true,
         },
     },
